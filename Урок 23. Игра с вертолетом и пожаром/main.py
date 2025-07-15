@@ -4,7 +4,7 @@ from fire_manager import FireManager
 from map_generator import MapGenerator
 from utils import save_game, load_game
 
-def print_map(game_map, heli):
+def print_map(game_map, heli, fire_manager):
     symbols = {
         "empty": " . ",
         "tree": " 🌲 ",
@@ -20,22 +20,15 @@ def print_map(game_map, heli):
         for x in range(len(game_map[y])):
             if (x, y) == (heli.x, heli.y):
                 row += symbols["helicopter"]
-            elif game_map[y][x] == "fire":
+            elif (x, y) in fire_manager.fires:
                 row += symbols["fire"]
-            elif game_map[y][x] == "tree":
-                row += symbols["tree"]
-            elif game_map[y][x] == "river":
-                row += symbols["river"]
-            elif game_map[y][x] == "hospital":
-                row += symbols["hospital"]
-            elif game_map[y][x] == "shop":
-                row += symbols["shop"]
             else:
-                row += symbols["empty"]
+                cell = game_map[y][x]
+                row += symbols.get(cell, " . ")
         print(row)
 
 def main():
-    print("Добро пожаловать в игру 'Пожарный вертолёт'!")
+    print("🎮 Добро пожаловать в игру 'Пожарный вертолёт'!")
     choice = input("Начать новую игру (n) или загрузить сохранение (l)? ").lower()
     if choice == "l":
         heli, fire_manager, game_map = load_game()
@@ -54,14 +47,22 @@ def main():
         game_map = generator.generate_special_cells(shop_count, "shop")
 
         heli = Helicopter(0, 0, game_map)
+
+        # Для теста: делаем хотя бы одно дерево под вертолётом
+        game_map[heli.y][heli.x] = "tree"
+
         fire_manager = FireManager(game_map)
+
+        # Для теста: добавляем начальный пожар
+        fire_manager.fires.append((heli.x, heli.y))
+        print("🔥 Тестовый пожар добавлен под вертолётом")
 
     try:
         while True:
             print("\n" + "-" * 50)
             print(f"Очки: {heli.points} | Жизни: {heli.lives} | Вода: {heli.water}/{heli.tank_capacity}")
-            print_map(game_map, heli)
-            print("Управление: W/A/S/D - движение, F - потушить, E - улучшения, Q - выход")
+            print_map(game_map, heli, fire_manager)
+            print("Управление: W/A/S/D - движение, F - тушить, R - заправиться, E - магазин, H - госпиталь, Q - выход")
 
             move = input("Ваш ход: ").lower()
 
@@ -75,17 +76,26 @@ def main():
                 heli.move(0, 1)
             elif move == "f":
                 heli.extinguish_fire(fire_manager)
+            elif move == "r":
+                heli.refill_water()
             elif move == "e":
                 heli.visit_shop()
+            elif move == "h":
+                heli.visit_hospital()
             elif move == "q":
                 save_choice = input("Сохранить игру перед выходом? (y/n): ").lower()
                 if save_choice == "y":
                     save_game(heli, fire_manager, game_map)
                 break
             else:
-                print("Неизвестная команда.")
+                print("❌ Неизвестная команда.")
 
             fire_manager.update_fires(game_map, heli)
+
+            if heli.lives <= 0:
+                print("💀 Игра окончена! Все жизни потеряны.")
+                break
+
             time.sleep(3)
 
     except KeyboardInterrupt:
